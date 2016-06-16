@@ -28,6 +28,7 @@
 		/// </summary>
 		private void InitializeComponent()
 		{
+			System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(frmMain));
 			this.label1 = new System.Windows.Forms.Label();
 			this.txtConsole = new System.Windows.Forms.TextBox();
 			this.btnSend = new System.Windows.Forms.Button();
@@ -199,6 +200,7 @@
 			this.Controls.Add(this.panConnection);
 			this.Controls.Add(this.grbGlobalChat);
 			this.Controls.Add(this.grbConnected);
+			this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
 			this.Name = "frmMain";
 			this.Text = "DynNet";
 			this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.frmMain_FormClosed);

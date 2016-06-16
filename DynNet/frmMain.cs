@@ -107,6 +107,19 @@ namespace DynNet
 				btnConnect_Click(sender, e);
 		}
 
+		public static byte[] WrapMessage(byte[] message)
+		{
+			// Get the length prefix for the message
+			byte[] lengthPrefix = BitConverter.GetBytes(message.Length);
+
+			// Concatenate the length prefix and the message
+			byte[] ret = new byte[lengthPrefix.Length + message.Length];
+			lengthPrefix.CopyTo(ret, 0);
+			message.CopyTo(ret, lengthPrefix.Length);
+
+			return ret;
+		}
+
 		private void btnConnect_Click(object sender, EventArgs e)
 		{
 			MessageToConsole = "Connecting to a DynServer ...";
@@ -129,11 +142,11 @@ namespace DynNet
 			serverStream = clientSocket.GetStream();
 			MessageToConsole = "Connected to DynServer.";
 
-			byte[] outStream = Encoding.Unicode.GetBytes(txtUsername.Text + "$");
+			byte[] outStream = WrapMessage(Encoding.UTF8.GetBytes(txtUsername.Text));
 			serverStream.Write(outStream, 0, outStream.Length);
 			serverStream.Flush();
 
-			string returnData = GetMessageFromServer();
+			//string returnData = GetMessageFromServer();
 			//if (returnData != null)
 			//{
 			//	string[] connected = JsonConvert.DeserializeObject<string[]>(returnData);
@@ -157,7 +170,7 @@ namespace DynNet
 		{
 			try
 			{
-				byte[] outStream = Encoding.Unicode.GetBytes(txtSendingMessage.Text + "$");
+				byte[] outStream = WrapMessage(Encoding.UTF8.GetBytes(txtSendingMessage.Text));
 				serverStream.Write(outStream, 0, outStream.Length);
 				serverStream.Flush();
 			}
@@ -206,8 +219,8 @@ namespace DynNet
 				byte[] inStream = new byte[10025];
 				//buffSize = clientSocket.ReceiveBufferSize;
 				int length = serverStream.Read(inStream, 0, inStream.Length);//TODO: Tester très long message.
-				if (length == 0) return null; //TODO: Comprendre pourquoi le Read continue quand le server est déconnecté.
-				return Encoding.Unicode.GetString(inStream, 0, length);
+				if (length == 0) return null; //TODO: Quand on reçoit 0, il faut fermer la connexion parce qu'elle est half-open.
+				return Encoding.UTF8.GetString(inStream, 4, length);
 			}
 			catch (IOException ex)
 			{
