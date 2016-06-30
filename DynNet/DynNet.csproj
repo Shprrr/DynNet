@@ -58,6 +58,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\DynServer\ClientConnectionBase.cs">
+      <Link>ClientConnectionBase.cs</Link>
+    </Compile>
+    <Compile Include="..\DynServer\PacketProtocol.cs">
+      <Link>PacketProtocol.cs</Link>
+    </Compile>
     <Compile Include="frmMain.cs">
       <SubType>Form</SubType>
     </Compile>

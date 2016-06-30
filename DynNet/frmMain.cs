@@ -1,25 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Configuration;
-using System.Drawing;
-using System.IO;
-using System.Linq;
 using System.Net.Sockets;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
-using Newtonsoft.Json;
+using DynServer;
 
 namespace DynNet
 {
 	public partial class frmMain : Form
 	{
-		public const int DEFAULT_PORT = 8888;
+		public const int DefaultPort = 8888;
+		public const int BufferSize = 10025;
 
-		TcpClient clientSocket;
-		NetworkStream serverStream;
+		public ClientConnectionBase ClientConnection { get; private set; }
 
+		#region MessageToConsole
 		private string _MessageToConsole = null;
 		public string MessageToConsole { set { _MessageToConsole = value; AddMessageToConsole(); } }
 
@@ -47,6 +41,7 @@ namespace DynNet
 				_MessageToConsole = null;
 			}
 		}
+		#endregion
 
 		public frmMain()
 		{
@@ -62,8 +57,7 @@ namespace DynNet
 
 		private void frmMain_FormClosed(object sender, FormClosedEventArgs e)
 		{
-			if (clientSocket != null) clientSocket.Close();
-			if (serverStream != null) serverStream.Close();
+			if (ClientConnection != null) ClientConnection.Dispose();
 		}
 
 		private void SwitchView(bool connected)
@@ -107,31 +101,19 @@ namespace DynNet
 				btnConnect_Click(sender, e);
 		}
 
-		public static byte[] WrapMessage(byte[] message)
-		{
-			// Get the length prefix for the message
-			byte[] lengthPrefix = BitConverter.GetBytes(message.Length);
-
-			// Concatenate the length prefix and the message
-			byte[] ret = new byte[lengthPrefix.Length + message.Length];
-			lengthPrefix.CopyTo(ret, 0);
-			message.CopyTo(ret, lengthPrefix.Length);
-
-			return ret;
-		}
-
 		private void btnConnect_Click(object sender, EventArgs e)
 		{
 			MessageToConsole = "Connecting to a DynServer ...";
 			Cursor = Cursors.WaitCursor;
 			try
 			{
-				clientSocket = new TcpClient();
+				TcpClient clientSocket = new TcpClient();
 				var serverAddress = txtServerAddress.Text.Split(':');
 				if (serverAddress.Length == 2)
 					clientSocket.Connect(serverAddress[0], int.Parse(serverAddress[1]));
 				else
-					clientSocket.Connect(txtServerAddress.Text, DEFAULT_PORT);
+					clientSocket.Connect(txtServerAddress.Text, DefaultPort);
+				ClientConnection = new ClientConnectionBase(clientSocket, BufferSize);
 			}
 			catch (SocketException)
 			{
@@ -139,12 +121,8 @@ namespace DynNet
 				Cursor = Cursors.Default;
 				return;
 			}
-			serverStream = clientSocket.GetStream();
 			MessageToConsole = "Connected to DynServer.";
-
-			byte[] outStream = WrapMessage(Encoding.UTF8.GetBytes(txtUsername.Text));
-			serverStream.Write(outStream, 0, outStream.Length);
-			serverStream.Flush();
+			ClientConnection.Send(txtUsername.Text);
 
 			//string returnData = GetMessageFromServer();
 			//if (returnData != null)
@@ -153,11 +131,22 @@ namespace DynNet
 			//	lstConnected.Items.AddRange(connected);
 			//}
 
-			Thread ctThread = new Thread(GetMessagesFromServer);
-			ctThread.Start();
+			ClientConnection.ReceivingMessage += ClientConnection_ReceivingMessage;
+			ClientConnection.Disconnecting += ClientConnection_Disconnecting;
 
 			SwitchView(true);
 			Cursor = Cursors.Default;
+		}
+
+		private void ClientConnection_ReceivingMessage(object sender, string message)
+		{
+			MessageToConsole = message;
+		}
+
+		private void ClientConnection_Disconnecting(object sender, EventArgs e)
+		{
+			MessageToConsole = "Disconnected from the server.";
+			if (!IsDisposed) Invoke((MethodInvoker)delegate { SwitchView(false); lstConnected.Items.Clear(); });
 		}
 
 		private void txtSendingMessage_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -168,77 +157,10 @@ namespace DynNet
 
 		private void btnSend_Click(object sender, EventArgs e)
 		{
-			try
-			{
-				byte[] outStream = WrapMessage(Encoding.UTF8.GetBytes(txtSendingMessage.Text));
-				serverStream.Write(outStream, 0, outStream.Length);
-				serverStream.Flush();
-			}
-			catch (IOException ex)
-			{
-				SocketException socketEx = ex.InnerException as SocketException;
+			if (!(ClientConnection?.Socket.Connected).GetValueOrDefault()) return;
 
-				if (socketEx != null)
-					switch (socketEx.SocketErrorCode)
-					{
-						case SocketError.ConnectionAborted:
-						case SocketError.ConnectionReset:
-						case SocketError.Interrupted:
-							clientSocket.Dispose();
-							serverStream.Close();
-							return;
-					}
-
-				throw;
-			}
-
+			ClientConnection.Send(txtSendingMessage.Text);
 			txtSendingMessage.Text = "";
-		}
-
-		private void GetMessagesFromServer()
-		{
-			while (clientSocket.Connected)
-			{
-				string returnData = GetMessageFromServer();
-				if (returnData != null)
-					MessageToConsole = returnData;
-			}
-
-			MessageToConsole = "Disconnected from the server.";
-			clientSocket.Dispose();
-			serverStream.Close();
-			if (!IsDisposed) Invoke((MethodInvoker)delegate { SwitchView(false); lstConnected.Items.Clear(); });
-		}
-
-		private string GetMessageFromServer()
-		{
-			try
-			{
-				//serverStream = clientSocket.GetStream();
-				//int buffSize = 0;
-				byte[] inStream = new byte[10025];
-				//buffSize = clientSocket.ReceiveBufferSize;
-				int length = serverStream.Read(inStream, 0, inStream.Length);//TODO: Tester très long message.
-				if (length == 0) return null; //TODO: Quand on reçoit 0, il faut fermer la connexion parce qu'elle est half-open.
-				return Encoding.UTF8.GetString(inStream, 4, length);
-			}
-			catch (IOException ex)
-			{
-				SocketException socketEx = ex.InnerException as SocketException;
-
-				if (socketEx != null)
-					switch (socketEx.SocketErrorCode)
-					{
-						case SocketError.ConnectionAborted:
-						case SocketError.ConnectionReset:
-						case SocketError.Interrupted:
-							clientSocket.Dispose();
-							serverStream.Close();
-							return null;
-					}
-
-				throw;
-			}
 		}
 	}
 }
