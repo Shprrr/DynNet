@@ -12,6 +12,7 @@ namespace DynNet
 		public const int BufferSize = 10025;
 
 		public ClientConnectionBase ClientConnection { get; private set; }
+		public DynNetProtocol Protocol { get; private set; }
 
 		#region MessageToConsole
 		private string _MessageToConsole = null;
@@ -48,6 +49,7 @@ namespace DynNet
 			InitializeComponent();
 
 			txtServerAddress.Text = ConfigurationManager.AppSettings["server"];
+			Protocol = new DynNetProtocol();
 		}
 
 		private void frmMain_Load(object sender, EventArgs e)
@@ -121,8 +123,11 @@ namespace DynNet
 				Cursor = Cursors.Default;
 				return;
 			}
+			ClientConnection.ReceivingMessage += ClientConnection_ReceivingMessage;
+			ClientConnection.Disconnecting += ClientConnection_Disconnecting;
+
 			MessageToConsole = "Connected to DynServer.";
-			ClientConnection.Send(txtUsername.Text);
+			ClientConnection.Send(Protocol.SendMessageConnect(txtUsername.Text));
 
 			//string returnData = GetMessageFromServer();
 			//if (returnData != null)
@@ -131,16 +136,14 @@ namespace DynNet
 			//	lstConnected.Items.AddRange(connected);
 			//}
 
-			ClientConnection.ReceivingMessage += ClientConnection_ReceivingMessage;
-			ClientConnection.Disconnecting += ClientConnection_Disconnecting;
-
 			SwitchView(true);
 			Cursor = Cursors.Default;
 		}
 
 		private void ClientConnection_ReceivingMessage(object sender, string message)
 		{
-			MessageToConsole = message;
+			if (!string.IsNullOrWhiteSpace(message))
+				MessageToConsole = message;
 		}
 
 		private void ClientConnection_Disconnecting(object sender, EventArgs e)

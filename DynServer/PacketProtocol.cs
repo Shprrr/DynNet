@@ -101,12 +101,7 @@ namespace DynServer
 		/// <para>This may be called with an empty message, indicating that the other end had sent a keepalive message. This will never be called with a null message.</para>
 		/// <para>This event is invoked from within a call to <see cref="DataReceived"/>. Handlers for this event should not call <see cref="DataReceived"/>.</para>
 		/// </remarks>
-		public Action<byte[], object> MessageArrived { get; set; }
-
-		/// <summary>
-		/// Parameter to pass to the Action when the message will arrive completely.
-		/// </summary>
-		public object Parameter { get; set; }
+		public Action<byte[]> MessageArrived { get; set; }
 
 		/// <summary>
 		/// Notifies the <see cref="PacketProtocol"/> instance that incoming data has been received from the stream. This method will invoke <see cref="MessageArrived"/> as necessary.
@@ -165,7 +160,8 @@ namespace DynServer
 		/// Encapsulate a read from a Stream to give to DataReceived.
 		/// </summary>
 		/// <param name="stream">Stream to read from.</param>
-		public void DataReceived(NetworkStream stream)
+		/// <returns>If the data received was succesful.</returns>
+		public bool DataReceived(NetworkStream stream)
 		{
 			bool received = false;
 			while (!received)
@@ -173,12 +169,13 @@ namespace DynServer
 				byte[] data = new byte[maxMessageSize];
 				try
 				{
-					stream.Read(data, 0, data.Length);
+					if (stream.Read(data, 0, data.Length) == 0)
+						return false;
 				}
 				catch (ObjectDisposedException)
 				{
 					// Object already gone.
-					return;
+					return false;
 				}
 				catch (Exception ex)
 				{
@@ -193,13 +190,14 @@ namespace DynServer
 							case SocketError.ConnectionAborted:
 							case SocketError.ConnectionReset:
 							case SocketError.Interrupted:
-								return;
+								return false;
 						}
 
 					throw ex;
 				}
 				received = DataReceived(data);
 			}
+			return true;
 		}
 
 		/// <summary>
@@ -238,7 +236,7 @@ namespace DynServer
 					if (length == 0)
 					{
 						bytesReceived = 0;
-						MessageArrived?.Invoke(new byte[0], Parameter);
+						MessageArrived?.Invoke(new byte[0]);
 						return true;
 					}
 					else
@@ -258,7 +256,7 @@ namespace DynServer
 				else
 				{
 					// We've gotten an entire packet
-					MessageArrived?.Invoke(dataBuffer, Parameter);
+					MessageArrived?.Invoke(dataBuffer);
 
 					// Start reading the length buffer again
 					dataBuffer = null;

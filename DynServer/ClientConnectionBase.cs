@@ -34,7 +34,7 @@ namespace DynServer
 			protocol.MessageArrived = Receive;
 			while (Socket.Connected)
 			{
-				protocol.DataReceived(Socket.GetStream());
+				if (!protocol.DataReceived(Socket.GetStream())) break;
 			}
 
 			OnDisconnecting();
@@ -47,9 +47,8 @@ namespace DynServer
 			Disconnecting?.Invoke(this, EventArgs.Empty);
 		}
 
-		private void Receive(byte[] data, object param)
+		private void Receive(byte[] data)
 		{
-			//_LastAlive = DateTime.Now;
 			string message = Encoding.UTF8.GetString(data);
 			OnReceivingMessage(message);
 		}
@@ -64,7 +63,7 @@ namespace DynServer
 		{
 			while (_ThreadReceive.IsAlive)
 			{
-				if ((DateTime.Now - _LastAlive).Milliseconds >= TIMEOUT)
+				if ((DateTime.Now - _LastAlive).TotalMilliseconds >= TIMEOUT)
 					Send(PacketProtocol.WrapKeepaliveMessage());
 
 				Thread.Sleep(TIMEOUT);
@@ -97,19 +96,19 @@ namespace DynServer
 			{
 				if (disposing)
 				{
-					// TODO: supprimer l'état managé (objets managés).
+					// Supprimer l'état managé (objets managés).
 					if (Socket.Connected) Socket.GetStream().Close();
 					Socket.Close();
 				}
 
-				// TODO: libérer les ressources non managées (objets non managés) et remplacer un finaliseur ci-dessous.
-				// TODO: définir les champs de grande taille avec la valeur Null.
+				// Libérer les ressources non managées (objets non managés) et remplacer un finaliseur ci-dessous.
+				// Définir les champs de grande taille avec la valeur Null.
 
 				disposedValue = true;
 			}
 		}
 
-		// TODO: remplacer un finaliseur seulement si la fonction Dispose(bool disposing) ci-dessus a du code pour libérer les ressources non managées.
+		// Remplacer un finaliseur seulement si la fonction Dispose(bool disposing) ci-dessus a du code pour libérer les ressources non managées.
 		// ~ClientConnection() {
 		//   // Ne modifiez pas ce code. Placez le code de nettoyage dans Dispose(bool disposing) ci-dessus.
 		//   Dispose(false);
@@ -120,7 +119,7 @@ namespace DynServer
 		{
 			// Ne modifiez pas ce code. Placez le code de nettoyage dans Dispose(bool disposing) ci-dessus.
 			Dispose(true);
-			// TODO: supprimer les marques de commentaire pour la ligne suivante si le finaliseur est remplacé ci-dessus.
+			// Supprimer les marques de commentaire pour la ligne suivante si le finaliseur est remplacé ci-dessus.
 			// GC.SuppressFinalize(this);
 		}
 		#endregion

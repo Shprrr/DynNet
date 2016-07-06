@@ -7,21 +7,22 @@ namespace DynServer
 {
 	class Program
 	{
-		public static string prompt = " >> ";
+		public static string PromptHeader = " >> ";
 		public const int BufferSize = 10025;
 
+		public static Dictionary<System.Net.Sockets.TcpClient, ClientConnection> PendingClientsList = new Dictionary<System.Net.Sockets.TcpClient, ClientConnection>();
 		public static Dictionary<string, ClientConnection> ClientsList = new Dictionary<string, ClientConnection>();
 
 		static void Main(string[] args)
 		{
 			if (ConfigurationManager.AppSettings["prompt"] != null)
-				prompt = ConfigurationManager.AppSettings["prompt"];
+				PromptHeader = ConfigurationManager.AppSettings["prompt"];
 
 			int port = 8888;
 			int.TryParse(ConfigurationManager.AppSettings["port"], out port);
 
 			ServerConnection server = new ServerConnection(port, 5);
-			Console.WriteLine(prompt + "Server Started on port " + port);
+			ConsoleWriteLine("Server Started on port " + port);
 
 			bool exit = false;
 			while (!exit)
@@ -36,8 +37,28 @@ namespace DynServer
 				ClientsList.ElementAt(i).Value.Dispose();
 			}
 			server.Dispose();
-			Console.WriteLine(prompt + "exited.  Press a key to close the window.");
+			ConsoleWriteLine("exited.  Press a key to close the window.");
 			Console.ReadKey();
+		}
+
+		/// <summary>
+		/// Writes a message on the console with the prompt header.
+		/// </summary>
+		/// <param name="message">Message without prompt header.</param>
+		public static void ConsoleWriteLine(string message)
+		{
+			Console.WriteLine(PromptHeader + message);
+		}
+
+		/// <summary>
+		/// Writes a debug message on the console with the prompt header.
+		/// </summary>
+		/// <param name="message">Message without prompt header.</param>
+		public static void DebugWriteLine(string message)
+		{
+#if DEBUG
+			Console.WriteLine(PromptHeader + "[DEBUG] " + message);
+#endif
 		}
 
 		public static void Broadcast(string message, string username, bool flag)
@@ -45,7 +66,7 @@ namespace DynServer
 			if (flag)
 				message = username + " says : " + message;
 
-			Console.WriteLine(prompt + message);
+			ConsoleWriteLine(message);
 
 			foreach (var client in ClientsList)
 			{

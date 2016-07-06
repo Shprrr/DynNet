@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
 
 namespace DynServer
 {
@@ -41,21 +40,8 @@ namespace DynServer
 			}
 			server._AcceptClient = server._ServerSocket.BeginAcceptTcpClient(AcceptClient, server);
 
-			PacketProtocol protocol = new PacketProtocol(Program.BufferSize);
-			protocol.MessageArrived = NewClient;
-			protocol.Parameter = clientSocket;
-			protocol.DataReceived(clientSocket.GetStream());
-		}
-
-		private static void NewClient(byte[] data, object param)
-		{
-			TcpClient clientSocket = (TcpClient)param;
-			string username = null;
-			username = Encoding.UTF8.GetString(data);
-
-			Program.Broadcast(username + " joined.", username, false);
-
-			Program.ClientsList.Add(username, new ClientConnection(clientSocket, username));
+			Program.PendingClientsList.Add(clientSocket, new ClientConnection(clientSocket));
+			Program.DebugWriteLine("New Client. Remaining clients pending:" + Program.PendingClientsList.Count + " online:" + Program.ClientsList.Count);
 		}
 
 		#region IDisposable Support
