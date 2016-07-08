@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 
@@ -12,8 +13,7 @@ namespace DynServer
 		public ClientConnection(TcpClient socket) : base(socket, Program.BufferSize)
 		{
 			Protocol = new DynNetProtocol();
-			Protocol.Connecting += Protocol_Connecting;
-
+			Protocol.Connect += Protocol_Connect;
 			ReceivingMessage += ClientConnection_ReceivingConnectMessage;
 		}
 
@@ -30,29 +30,37 @@ namespace DynServer
 			}
 		}
 
-		private void Protocol_Connecting(object sender, string username)
+		private void Protocol_Connect(object sender, string username)
 		{
 			Username = username;
+			Protocol.Connect -= Protocol_Connect;
 			ReceivingMessage -= ClientConnection_ReceivingConnectMessage;
 
 			ReceivingMessage += ClientConnection_ReceivingMessage;
 			Disconnecting += ClientConnection_Disconnecting;
+			Protocol.Message += Protocol_Message;
 
-			Program.Broadcast(Username + " joined.", Username, false);
+			Program.Broadcast(Protocol.ConstructMessageConnected(Username));
 			Program.PendingClientsList.Remove(Socket);
 			Program.ClientsList.Add(Username, this);
 			Program.DebugWriteLine("Client accepted. Remaining clients pending:" + Program.PendingClientsList.Count + " online:" + Program.ClientsList.Count);
+			Send(Protocol.ConstructMessageWhoResponse(Program.ClientsList.Keys.ToArray()));
 		}
 
 		private void ClientConnection_ReceivingMessage(object sender, string message)
 		{
 			if (!string.IsNullOrWhiteSpace(message))
-				Program.Broadcast(message, Username, true);
+				Protocol.ReceiveMessage(message);
+		}
+
+		private void Protocol_Message(object sender, string message)
+		{
+			Program.Broadcast(Protocol.ConstructChatMessage(Username, message));
 		}
 
 		private void ClientConnection_Disconnecting(object sender, EventArgs e)
 		{
-			Program.Broadcast(Username + " has been disconnected.", Username, false);
+			Program.Broadcast(Protocol.ConstructMessageDisconnected(Username));
 		}
 
 		#region IDisposable Support

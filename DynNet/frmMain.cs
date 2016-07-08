@@ -50,6 +50,10 @@ namespace DynNet
 
 			txtServerAddress.Text = ConfigurationManager.AppSettings["server"];
 			Protocol = new DynNetProtocol();
+			Protocol.Connected += Protocol_Connected;
+			Protocol.Disconnected += Protocol_Disconnected;
+			Protocol.WhoResponse += Protocol_WhoResponse;
+			Protocol.Message += Protocol_Message;
 		}
 
 		private void frmMain_Load(object sender, EventArgs e)
@@ -79,6 +83,8 @@ namespace DynNet
 				txtConsoleLogin.ScrollToCaret();
 				if (!string.IsNullOrWhiteSpace(txtServerAddress.Text))
 					ActiveControl = txtUsername;
+
+				lstConnected.Items.Clear();
 			}
 		}
 
@@ -127,14 +133,7 @@ namespace DynNet
 			ClientConnection.Disconnecting += ClientConnection_Disconnecting;
 
 			MessageToConsole = "Connected to DynServer.";
-			ClientConnection.Send(Protocol.SendMessageConnect(txtUsername.Text));
-
-			//string returnData = GetMessageFromServer();
-			//if (returnData != null)
-			//{
-			//	string[] connected = JsonConvert.DeserializeObject<string[]>(returnData);
-			//	lstConnected.Items.AddRange(connected);
-			//}
+			ClientConnection.Send(Protocol.ConstructMessageConnect(txtUsername.Text));
 
 			SwitchView(true);
 			Cursor = Cursors.Default;
@@ -143,13 +142,41 @@ namespace DynNet
 		private void ClientConnection_ReceivingMessage(object sender, string message)
 		{
 			if (!string.IsNullOrWhiteSpace(message))
-				MessageToConsole = message;
+				Protocol.ReceiveMessage(message);
+		}
+
+		private void Protocol_Connected(object sender, string username)
+		{
+			MessageToConsole = username + " joined.";
+			lstConnected.Items.Add(username);
+		}
+
+		private void Protocol_Disconnected(object sender, string username)
+		{
+			MessageToConsole = username + " has been disconnected.";
+			lstConnected.Items.Remove(username);
+		}
+
+		private void Protocol_WhoResponse(object sender, string[] usernames)
+		{
+			usernames = Array.FindAll(usernames, u => u != txtUsername.Text);
+			if (!IsDisposed)
+				Invoke((MethodInvoker)delegate
+				{
+					lstConnected.Items.Clear();
+					lstConnected.Items.AddRange(usernames);
+				});
+		}
+
+		private void Protocol_Message(object sender, DynNetProtocol.MessageParameter message)
+		{
+			MessageToConsole = message.Username + " says : " + message.Message;
 		}
 
 		private void ClientConnection_Disconnecting(object sender, EventArgs e)
 		{
 			MessageToConsole = "Disconnected from the server.";
-			if (!IsDisposed) Invoke((MethodInvoker)delegate { SwitchView(false); lstConnected.Items.Clear(); });
+			if (!IsDisposed) Invoke((MethodInvoker)delegate { SwitchView(false); });
 		}
 
 		private void txtSendingMessage_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
@@ -162,7 +189,7 @@ namespace DynNet
 		{
 			if (!(ClientConnection?.Socket.Connected).GetValueOrDefault()) return;
 
-			ClientConnection.Send(txtSendingMessage.Text);
+			ClientConnection.Send(Protocol.ConstructChatMessage(txtSendingMessage.Text));
 			txtSendingMessage.Text = "";
 		}
 	}

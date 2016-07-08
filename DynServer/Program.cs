@@ -57,15 +57,34 @@ namespace DynServer
 		public static void DebugWriteLine(string message)
 		{
 #if DEBUG
+			Console.ForegroundColor = ConsoleColor.Green;
 			Console.WriteLine(PromptHeader + "[DEBUG] " + message);
+			Console.ResetColor();
 #endif
 		}
 
-		public static void Broadcast(string message, string username, bool flag)
+		/// <summary>
+		/// Writes a message on the console about an exception.
+		/// </summary>
+		/// <param name="message">Message without prompt header.</param>
+		public static void ExceptionWriteLine(string message)
 		{
-			if (flag)
-				message = username + " says : " + message;
+			Console.ForegroundColor = ConsoleColor.Red;
+			Console.WriteLine(PromptHeader + "[EXCEPT] " + message);
+			Console.ResetColor();
+		}
 
+		/// <summary>
+		/// Writes a message on the console about an exception.
+		/// </summary>
+		/// <param name="exception">Exception to show.</param>
+		public static void ExceptionWriteLine(Exception exception)
+		{
+			ExceptionWriteLine(exception.Message);
+		}
+
+		public static void Broadcast(string message)
+		{
 			ConsoleWriteLine(message);
 
 			foreach (var client in ClientsList)

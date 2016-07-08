@@ -6,6 +6,13 @@ namespace DynServer
 	public class DynNetProtocol
 	{
 		public const string VersionProtocol = "0.0";
+		private static JsonSerializerSettings SerializerSettings = new JsonSerializerSettings();
+
+		static DynNetProtocol()
+		{
+			SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
+			SerializerSettings.Formatting = Formatting.None;
+		}
 
 		public static void ExtractCommand(string message, out string command, out string parameters)
 		{
@@ -30,7 +37,11 @@ namespace DynServer
 			switch (command)
 			{
 				case "connect":
-					Connect(parameters);
+					ValidateConnect(parameters);
+					break;
+
+				case "m":
+					OnMessage(parameters);
 					break;
 
 				default:
@@ -44,7 +55,7 @@ namespace DynServer
 		/// </summary>
 		/// <param name="command"></param>
 		/// <param name="parameters"></param>
-		public virtual void AdditionalCommands(string command, string parameters) { }
+		protected virtual void AdditionalCommands(string command, string parameters) { }
 
 		#region connect
 		/// <summary>
@@ -59,29 +70,79 @@ namespace DynServer
 
 			if (command != "connect") return false;
 
-			Connect(parameters);
+			ValidateConnect(parameters);
 			return true;
 		}
 
-		private void Connect(string parameters)
+		private void ValidateConnect(string parameters)
 		{
-			/*Envoi : connect { version: “1.0”, username: “username” }
-			La version correspond à la version du protocole utilisée (et non à la version de l’application).
-			Reçoit: Déconnexion si la version du protocole n’est pas supporté par le serveur.*/
+			try
+			{
+				var obj = JsonConvert.DeserializeAnonymousType(parameters, new { Version = VersionProtocol, Username = "username" });
 
-			var obj = JsonConvert.DeserializeAnonymousType(parameters, new { Version = VersionProtocol, Username = "username" });
+				if (obj.Version != VersionProtocol)
+					throw new System.Net.ProtocolViolationException("Protocol not supported.");
 
-			if (obj.Version != VersionProtocol)
-				throw new System.Net.ProtocolViolationException("Protocol not supported.");
-
-			OnConnecting(obj.Username);
+				OnConnect(obj.Username);
+			}
+			catch (JsonException ex)
+			{
+				Program.ExceptionWriteLine(ex);
+			}
 		}
 
-		public event EventHandler<string> Connecting;
-		protected virtual void OnConnecting(string username)
+		public event EventHandler<string> Connect;
+		protected virtual void OnConnect(string username)
 		{
-			Connecting?.Invoke(this, username);
+			Connect?.Invoke(this, username);
 		}
 		#endregion
+
+		public event EventHandler<string> Message;
+		protected virtual void OnMessage(string message)
+		{
+			Message?.Invoke(this, message);
+		}
+
+		/// <summary>
+		/// Indicates that the username just connected.
+		/// </summary>
+		/// <param name="username"></param>
+		/// <returns></returns>
+		public string ConstructMessageConnected(string username)
+		{
+			return "connected \"" + username + "\"";
+		}
+
+		/// <summary>
+		/// Indicates that the username just disconnected.
+		/// </summary>
+		/// <param name="username"></param>
+		/// <returns></returns>
+		public string ConstructMessageDisconnected(string username)
+		{
+			return "disconnected \"" + username + "\"";
+		}
+
+		/// <summary>
+		/// List all connected users.
+		/// </summary>
+		/// <param name="usernames"></param>
+		/// <returns></returns>
+		public string ConstructMessageWhoResponse(string[] usernames)
+		{
+			return "whoresponse " + JsonConvert.SerializeObject(usernames, SerializerSettings);
+		}
+
+		/// <summary>
+		/// Public message in the chat.
+		/// </summary>
+		/// <param name="username"></param>
+		/// <param name="message"></param>
+		/// <returns></returns>
+		public string ConstructChatMessage(string username, string message)
+		{
+			return "m " + JsonConvert.SerializeObject(new { Username = username, Message = message }, SerializerSettings);
+		}
 	}
 }
