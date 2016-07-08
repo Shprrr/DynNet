@@ -7,7 +7,7 @@ namespace DynServer
 {
 	class Program
 	{
-		public static string PromptHeader = " >> ";
+		public static string PromptHeader = "[%T] >> ";
 		public const int BufferSize = 10025;
 
 		public static Dictionary<System.Net.Sockets.TcpClient, ClientConnection> PendingClientsList = new Dictionary<System.Net.Sockets.TcpClient, ClientConnection>();
@@ -41,13 +41,20 @@ namespace DynServer
 			Console.ReadKey();
 		}
 
+		private static string EvaluatePromptHeader()
+		{
+			var regexTime = new System.Text.RegularExpressions.Regex("(?<!%)%T");
+			var regexEscape = new System.Text.RegularExpressions.Regex("(?<!%)%%");
+			return regexEscape.Replace(regexTime.Replace(PromptHeader, DateTime.Now.ToShortTimeString()), "%");
+		}
+
 		/// <summary>
 		/// Writes a message on the console with the prompt header.
 		/// </summary>
 		/// <param name="message">Message without prompt header.</param>
 		public static void ConsoleWriteLine(string message)
 		{
-			Console.WriteLine(PromptHeader + message);
+			Console.WriteLine(EvaluatePromptHeader() + message);
 		}
 
 		/// <summary>
@@ -58,7 +65,7 @@ namespace DynServer
 		{
 #if DEBUG
 			Console.ForegroundColor = ConsoleColor.Green;
-			Console.WriteLine(PromptHeader + "[DEBUG] " + message);
+			Console.WriteLine(EvaluatePromptHeader() + "[DEBUG] " + message);
 			Console.ResetColor();
 #endif
 		}
@@ -70,7 +77,7 @@ namespace DynServer
 		public static void ExceptionWriteLine(string message)
 		{
 			Console.ForegroundColor = ConsoleColor.Red;
-			Console.WriteLine(PromptHeader + "[EXCEPT] " + message);
+			Console.WriteLine(EvaluatePromptHeader() + "[EXCEPT] " + message);
 			Console.ResetColor();
 		}
 
