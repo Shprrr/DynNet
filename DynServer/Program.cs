@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
+using System.Diagnostics;
 using System.Linq;
 
 namespace DynServer
@@ -13,15 +14,18 @@ namespace DynServer
 		public static Dictionary<System.Net.Sockets.TcpClient, ClientConnection> PendingClientsList = new Dictionary<System.Net.Sockets.TcpClient, ClientConnection>();
 		public static Dictionary<string, ClientConnection> ClientsList = new Dictionary<string, ClientConnection>();
 
+		private static ServerConnection server = null;
 		static void Main(string[] args)
 		{
+			AppDomain.CurrentDomain.UnhandledException += AppDomain_UnhandledException;
+
 			if (ConfigurationManager.AppSettings["prompt"] != null)
 				PromptHeader = ConfigurationManager.AppSettings["prompt"];
 
 			int port = 8888;
 			int.TryParse(ConfigurationManager.AppSettings["port"], out port);
 
-			ServerConnection server = new ServerConnection(port, 5);
+			server = new ServerConnection(port, 5);
 			ConsoleWriteLine("Server Started on port " + port);
 
 			bool exit = false;
@@ -36,9 +40,27 @@ namespace DynServer
 			{
 				ClientsList.ElementAt(i).Value.Dispose();
 			}
-			server.Dispose();
-			ConsoleWriteLine("exited.  Press a key to close the window.");
+
+			if (server != null)
+				server.Dispose();
+			ConsoleWriteLine("Exited.  Press a key to close the window.");
 			Console.ReadKey();
+		}
+
+		private static void AppDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+		{
+			ExceptionWriteLine("UnhandledException: " + e.ExceptionObject.ToString());
+
+			for (int i = ClientsList.Count - 1; i >= 0; i--)
+			{
+				ClientsList.ElementAt(i).Value.Dispose();
+			}
+
+			if (server != null)
+				server.Dispose();
+			ConsoleWriteLine("Crashed.  Press a key to close the window.");
+			Console.ReadKey();
+			Environment.Exit(1);
 		}
 
 		private static string EvaluatePromptHeader()
@@ -79,6 +101,8 @@ namespace DynServer
 			Console.ForegroundColor = ConsoleColor.Red;
 			Console.WriteLine(EvaluatePromptHeader() + "[EXCEPT] " + message);
 			Console.ResetColor();
+
+			new TraceSource("DynServer").TraceEvent(TraceEventType.Error, 0, message);
 		}
 
 		/// <summary>
