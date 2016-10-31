@@ -15,7 +15,32 @@ namespace DynServer
 		public static Dictionary<string, ClientConnection> ClientsList = new Dictionary<string, ClientConnection>();
 
 		private static ServerConnection server = null;
-		static void Main(string[] args)
+		private static TraceSource trace;
+
+		private static void Main(string[] args)
+		{
+			trace = new TraceSource("DynServer");
+
+			if (!Environment.UserInteractive)
+			{
+				System.ServiceProcess.ServiceBase.Run(new Service());
+				return;
+			}
+
+			StartServer(args);
+
+			bool exit = false;
+			while (!exit)
+			{
+				string line = Console.ReadLine();
+				if (line != null && (line.StartsWith("exit") || line.StartsWith("quit")))
+					exit = true;
+			}
+
+			StopServer();
+		}
+
+		internal static void StartServer(string[] args)
 		{
 			AppDomain.CurrentDomain.UnhandledException += AppDomain_UnhandledException;
 
@@ -24,18 +49,15 @@ namespace DynServer
 
 			int port = 8888;
 			int.TryParse(ConfigurationManager.AppSettings["port"], out port);
+			if (args.Length > 0)
+				int.TryParse(args[0], out port);
 
 			server = new ServerConnection(port, 5);
 			ConsoleWriteLine("Server Started on port " + port);
+		}
 
-			bool exit = false;
-			while (!exit)
-			{
-				string line = Console.ReadLine();
-				if (line.StartsWith("exit") || line.StartsWith("quit"))
-					exit = true;
-			}
-
+		internal static void StopServer(bool crashed = false)
+		{
 			for (int i = ClientsList.Count - 1; i >= 0; i--)
 			{
 				ClientsList.ElementAt(i).Value.Dispose();
@@ -43,24 +65,22 @@ namespace DynServer
 
 			if (server != null)
 				server.Dispose();
-			ConsoleWriteLine("Exited.  Press a key to close the window.");
-			Console.ReadKey();
+
+			if (crashed)
+				ConsoleWriteLine("Crashed.  Press a key to close the window.");
+			else
+				ConsoleWriteLine("Exited.  Press a key to close the window.");
+			if (Environment.UserInteractive)
+				Console.ReadKey();
+			if (crashed)
+				Environment.Exit(1);
 		}
 
 		private static void AppDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
 		{
 			ExceptionWriteLine("UnhandledException: " + e.ExceptionObject.ToString());
 
-			for (int i = ClientsList.Count - 1; i >= 0; i--)
-			{
-				ClientsList.ElementAt(i).Value.Dispose();
-			}
-
-			if (server != null)
-				server.Dispose();
-			ConsoleWriteLine("Crashed.  Press a key to close the window.");
-			Console.ReadKey();
-			Environment.Exit(1);
+			StopServer(true);
 		}
 
 		private static string EvaluatePromptHeader()
@@ -102,7 +122,7 @@ namespace DynServer
 			Console.WriteLine(EvaluatePromptHeader() + "[EXCEPT] " + message);
 			Console.ResetColor();
 
-			new TraceSource("DynServer").TraceEvent(TraceEventType.Error, 0, message);
+			trace.TraceEvent(TraceEventType.Error, 0, message);
 		}
 
 		/// <summary>
