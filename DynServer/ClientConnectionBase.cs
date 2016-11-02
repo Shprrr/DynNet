@@ -32,7 +32,12 @@ namespace DynServer
 		{
 			PacketProtocol protocol = new PacketProtocol(BufferSize);
 			protocol.MessageArrived = Receive;
-			while (Socket.Connected)
+			// Wait until the event ReceivingMessage is assigned before receving anything.
+			while (ReceivingMessage == null)
+			{
+				Thread.Sleep(0);
+			}
+			while (Socket.Connected && ReceivingMessage != null)
 			{
 				if (!protocol.DataReceived(Socket.GetStream())) break;
 			}

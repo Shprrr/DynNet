@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 
 namespace DynServer
 {
@@ -15,11 +16,11 @@ namespace DynServer
 		public static Dictionary<string, ClientConnection> ClientsList = new Dictionary<string, ClientConnection>();
 
 		private static ServerConnection server = null;
-		private static TraceSource trace;
+		public static TraceSource Trace { get; private set; }
 
 		private static void Main(string[] args)
 		{
-			trace = new TraceSource("DynServer");
+			Trace = new TraceSource("DynServer");
 
 			if (!Environment.UserInteractive)
 			{
@@ -30,14 +31,16 @@ namespace DynServer
 			StartServer(args);
 
 			bool exit = false;
-			while (!exit)
+			while (!exit && server != null)
 			{
 				string line = Console.ReadLine();
+				if (server == null) break;
 				if (line != null && (line.StartsWith("exit") || line.StartsWith("quit")))
 					exit = true;
 			}
 
-			StopServer();
+			if (server != null)
+				StopServer();
 		}
 
 		internal static void StartServer(string[] args)
@@ -56,6 +59,12 @@ namespace DynServer
 			ConsoleWriteLine("Server Started on port " + port);
 		}
 
+		[DllImport("User32.Dll", EntryPoint = "PostMessageA")]
+		private static extern bool PostMessage(IntPtr hWnd, uint msg, int wParam, int lParam);
+
+		const int VK_RETURN = 0x0D;
+		const int WM_KEYDOWN = 0x100;
+
 		internal static void StopServer(bool crashed = false)
 		{
 			for (int i = ClientsList.Count - 1; i >= 0; i--)
@@ -64,14 +73,22 @@ namespace DynServer
 			}
 
 			if (server != null)
+			{
 				server.Dispose();
+				server = null;
+			}
 
 			if (crashed)
 				ConsoleWriteLine("Crashed.  Press a key to close the window.");
 			else
 				ConsoleWriteLine("Exited.  Press a key to close the window.");
+
 			if (Environment.UserInteractive)
-				Console.ReadKey();
+			{
+				if (crashed)
+					PostMessage(Process.GetCurrentProcess().MainWindowHandle, WM_KEYDOWN, VK_RETURN, 0); // Stop Console.ReadLine.
+				Console.ReadKey(true);
+			}
 			if (crashed)
 				Environment.Exit(1);
 		}
@@ -122,7 +139,7 @@ namespace DynServer
 			Console.WriteLine(EvaluatePromptHeader() + "[EXCEPT] " + message);
 			Console.ResetColor();
 
-			trace.TraceEvent(TraceEventType.Error, 0, message);
+			Trace.TraceEvent(TraceEventType.Error, 0, message);
 		}
 
 		/// <summary>
