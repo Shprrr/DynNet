@@ -47,7 +47,7 @@ namespace DynNet
 			if (endQuote == -1)
 				return parameters;
 
-			return parameters.Substring(startQuote + 1, endQuote - startQuote - 1);
+			return parameters.Substring(startQuote + 1, endQuote - startQuote - 1).Replace("\\\"", "\"");
 		}
 
 		public static string SerializeInString(string value)
