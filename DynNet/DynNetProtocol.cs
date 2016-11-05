@@ -29,6 +29,33 @@ namespace DynNet
 			}
 		}
 
+		public static int IndexOfQuote(string parameters, int startIndex = 0)
+		{
+			int indexQuote = parameters.IndexOf('"', startIndex);
+			while (indexQuote > 0 && parameters[indexQuote - 1] == '\\')
+				indexQuote = parameters.IndexOf('"', indexQuote + 1);
+			return indexQuote;
+		}
+
+		public static string ExtractParameterValueInString(string parameters, int startIndex = 0)
+		{
+			int startQuote = IndexOfQuote(parameters, startIndex);
+			if (startQuote == -1)
+				return parameters;
+
+			int endQuote = IndexOfQuote(parameters, startQuote + 1);
+			if (endQuote == -1)
+				return parameters;
+
+			return parameters.Substring(startQuote + 1, endQuote - startQuote - 1);
+		}
+
+		public static string SerializeInString(string value)
+		{
+			if (value == null) return null;
+			return value.Replace("\"", "\\\"");
+		}
+
 		public void ReceiveMessage(string message)
 		{
 			string command, parameters;
@@ -37,13 +64,31 @@ namespace DynNet
 			switch (command)
 			{
 				case "connected":
-					if (parameters.IndexOf('"') == 0 && parameters.LastIndexOf('"') == parameters.Length - 1)
-						OnConnected(parameters.Substring(1, parameters.Length - 2));
+					{
+						string username = ExtractParameterValueInString(parameters);
+						if (username != parameters)
+							OnConnected(username);
+					}
 					break;
 
 				case "disconnected":
-					if (parameters.IndexOf('"') == 0 && parameters.LastIndexOf('"') == parameters.Length - 1)
-						OnDisconnected(parameters.Substring(1, parameters.Length - 2));
+					{
+						string username = ExtractParameterValueInString(parameters);
+						if (username != parameters)
+						{
+							int endIndexUsername = IndexOfQuote(parameters, IndexOfQuote(parameters) + 1);
+							if (endIndexUsername > 0)
+							{
+								string reason = ExtractParameterValueInString(parameters, endIndexUsername + 1);
+								if (reason != parameters)
+								{
+									OnDisconnected(username, reason);
+									break;
+								}
+							}
+							OnDisconnected(username);
+						}
+					}
 					break;
 
 				case "whoresponse":
@@ -82,10 +127,15 @@ namespace DynNet
 			Connected?.Invoke(this, username);
 		}
 
-		public event EventHandler<string> Disconnected;
-		protected virtual void OnDisconnected(string username)
+		public struct DisconnectedParameter
 		{
-			Disconnected?.Invoke(this, username);
+			public string Username { get; set; }
+			public string Reason { get; set; }
+		}
+		public event EventHandler<DisconnectedParameter> Disconnected;
+		protected virtual void OnDisconnected(string username, string reason = null)
+		{
+			Disconnected?.Invoke(this, new DisconnectedParameter { Username = username, Reason = reason });
 		}
 
 		public event EventHandler<string[]> WhoResponse;

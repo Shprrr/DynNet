@@ -25,13 +25,20 @@ namespace DynServer
 			}
 			catch (ProtocolViolationException ex)
 			{
-				Send("Disconnecting.  " + ex.Message);
+				Send(Protocol.ConstructMessageDisconnected(null, ex.Message));
 				Dispose();
 			}
 		}
 
 		private void Protocol_Connect(object sender, string username)
 		{
+			if (Program.ClientsList.ContainsKey(username))
+			{
+				Send(Protocol.ConstructMessageDisconnected(username, "The username is already in use."));
+				Dispose();
+				return;
+			}
+
 			Username = username;
 			Protocol.Connect -= Protocol_Connect;
 			ReceivingMessage -= ClientConnection_ReceivingConnectMessage;

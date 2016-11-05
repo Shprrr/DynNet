@@ -10,7 +10,7 @@ namespace DynServer
 		/// <summary>
 		/// Time in milisecond before checking if there is a half-open connection.
 		/// </summary>
-		public const int TIMEOUT = 1000;
+		public const int TIMEOUT = 30000;
 
 		public TcpClient Socket { get; set; }
 		public int BufferSize { get; protected set; }

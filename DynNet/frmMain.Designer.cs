@@ -88,7 +88,7 @@
 			this.txtSendingMessage.Name = "txtSendingMessage";
 			this.txtSendingMessage.Size = new System.Drawing.Size(333, 20);
 			this.txtSendingMessage.TabIndex = 0;
-			this.txtSendingMessage.PreviewKeyDown += new System.Windows.Forms.PreviewKeyDownEventHandler(this.txtSendingMessage_PreviewKeyDown);
+			this.txtSendingMessage.KeyDown += new System.Windows.Forms.KeyEventHandler(this.txtSendingMessage_KeyDown);
 			// 
 			// btnConnect
 			// 

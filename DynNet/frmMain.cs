@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Configuration;
 using System.Net.Sockets;
 using System.Windows.Forms;
@@ -28,7 +29,7 @@ namespace DynNet
 				{
 					Invoke(new MethodInvoker(AddMessageToConsole));
 				}
-				catch (ObjectDisposedException)
+				catch (Exception ex) when (ex is ObjectDisposedException || ex is InvalidAsynchronousStateException)
 				{
 					// ARRÊTE DE ME GOSSER !!!!
 				}
@@ -111,6 +112,8 @@ namespace DynNet
 
 		private void btnConnect_Click(object sender, EventArgs e)
 		{
+			if (string.IsNullOrWhiteSpace(txtServerAddress.Text) || string.IsNullOrWhiteSpace(txtUsername.Text)) return;
+
 			MessageToConsole = "Connecting to a DynServer ...";
 			Cursor = Cursors.WaitCursor;
 			try
@@ -151,10 +154,25 @@ namespace DynNet
 			lstConnected.Items.Add(username);
 		}
 
-		private void Protocol_Disconnected(object sender, string username)
+		private void Protocol_Disconnected(object sender, DynNetProtocol.DisconnectedParameter parameters)
 		{
-			MessageToConsole = username + " has been disconnected.";
-			lstConnected.Items.Remove(username);
+			if (string.IsNullOrEmpty(parameters.Username))
+				parameters.Username = txtUsername.Text;
+
+			if (string.IsNullOrEmpty(parameters.Reason))
+				MessageToConsole = parameters.Username + " has been disconnected.";
+			else
+			{
+				if (txtUsername.Text == parameters.Username)
+					MessageToConsole = "Disconnected because " + parameters.Reason + ".";
+				else
+					MessageToConsole = parameters.Username + " has been disconnected because " + parameters.Reason + ".";
+			}
+
+			if (lstConnected.Items.Contains(parameters.Username))
+				lstConnected.Items.Remove(parameters.Username);
+			if (txtUsername.Text == parameters.Username)
+				SwitchView(false);
 		}
 
 		private void Protocol_WhoResponse(object sender, string[] usernames)
@@ -179,15 +197,18 @@ namespace DynNet
 			if (!IsDisposed) Invoke((MethodInvoker)delegate { SwitchView(false); });
 		}
 
-		private void txtSendingMessage_PreviewKeyDown(object sender, PreviewKeyDownEventArgs e)
+		private void txtSendingMessage_KeyDown(object sender, KeyEventArgs e)
 		{
 			if (e.KeyData == Keys.Enter)
+			{
 				btnSend_Click(sender, e);
+				e.SuppressKeyPress = true;
+			}
 		}
 
 		private void btnSend_Click(object sender, EventArgs e)
 		{
-			if (!(ClientConnection?.Socket.Connected).GetValueOrDefault()) return;
+			if (!(ClientConnection?.Socket.Connected).GetValueOrDefault() || string.IsNullOrWhiteSpace(txtSendingMessage.Text)) return;
 
 			ClientConnection.Send(Protocol.ConstructChatMessage(txtSendingMessage.Text));
 			txtSendingMessage.Text = "";

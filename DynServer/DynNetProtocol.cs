@@ -29,6 +29,33 @@ namespace DynServer
 			}
 		}
 
+		public static int IndexOfQuote(string parameters, int startIndex = 0)
+		{
+			int indexQuote = parameters.IndexOf('"', startIndex);
+			while (indexQuote > 0 && parameters[indexQuote - 1] == '\\')
+				indexQuote = parameters.IndexOf('"', indexQuote + 1);
+			return indexQuote;
+		}
+
+		public static string ExtractParameterValueInString(string parameters, int startIndex = 0)
+		{
+			int startQuote = IndexOfQuote(parameters, startIndex);
+			if (startQuote == -1)
+				return parameters;
+
+			int endQuote = IndexOfQuote(parameters, startQuote + 1);
+			if (endQuote == -1)
+				return parameters;
+
+			return parameters.Substring(startQuote + 1, endQuote - startQuote - 1);
+		}
+
+		public static string SerializeInString(string value)
+		{
+			if (value == null) return null;
+			return value.Replace("\"", "\\\"");
+		}
+
 		public void ReceiveMessage(string message)
 		{
 			string command, parameters;
@@ -111,7 +138,7 @@ namespace DynServer
 		/// <returns></returns>
 		public string ConstructMessageConnected(string username)
 		{
-			return "connected \"" + username + "\"";
+			return "connected \"" + SerializeInString(username) + "\"";
 		}
 
 		/// <summary>
@@ -121,7 +148,18 @@ namespace DynServer
 		/// <returns></returns>
 		public string ConstructMessageDisconnected(string username)
 		{
-			return "disconnected \"" + username + "\"";
+			return "disconnected \"" + SerializeInString(username) + "\"";
+		}
+
+		/// <summary>
+		/// Indicates that the username just disconnected with a reason.
+		/// </summary>
+		/// <param name="username"></param>
+		/// <param name="reason"></param>
+		/// <returns></returns>
+		public string ConstructMessageDisconnected(string username, string reason)
+		{
+			return "disconnected \"" + SerializeInString(username) + "\" \"" + SerializeInString(reason) + "\"";
 		}
 
 		/// <summary>
