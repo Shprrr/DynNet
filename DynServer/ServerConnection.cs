@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 
 namespace DynServer
 {
@@ -11,6 +12,7 @@ namespace DynServer
 	{
 		private TcpListener _ServerSocket;
 		private IAsyncResult _AcceptClient;
+		private Thread _ThreadKeepAlive;
 
 		/// <summary>
 		/// 
@@ -23,6 +25,8 @@ namespace DynServer
 
 			_ServerSocket.Start(maxPendingConnection);
 			_AcceptClient = _ServerSocket.BeginAcceptTcpClient(AcceptClient, this);
+			_ThreadKeepAlive = new Thread(KeepAlive);
+			_ThreadKeepAlive.Start();
 		}
 
 		private static void AcceptClient(IAsyncResult ar)
@@ -44,6 +48,19 @@ namespace DynServer
 			Program.DebugWriteLine("New Client. Remaining clients pending:" + Program.PendingClientsList.Count + " online:" + Program.ClientsList.Count);
 		}
 
+		private void KeepAlive()
+		{
+			while (_ThreadKeepAlive.IsAlive)
+			{
+				foreach (var client in Program.ClientsList)
+				{
+					client.Value.SendKeepAlive();
+				}
+
+				Thread.Sleep(ClientConnectionBase.TIMEOUT);
+			}
+		}
+
 		#region IDisposable Support
 		private bool disposedValue = false; // Pour détecter les appels redondants
 
@@ -56,6 +73,7 @@ namespace DynServer
 					// Supprimer l'état managé (objets managés).
 					if (_ServerSocket != null)
 						_ServerSocket.Stop();
+					_ThreadKeepAlive.Abort();
 				}
 
 				// Libérer les ressources non managées (objets non managés) et remplacer un finaliseur ci-dessous.

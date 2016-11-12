@@ -15,8 +15,8 @@ namespace DynServer
 		public TcpClient Socket { get; set; }
 		public int BufferSize { get; protected set; }
 		private Thread _ThreadReceive;
-		private Thread _ThreadKeepAlive;
 		private DateTime _LastAlive = DateTime.Now;
+		public bool NeedKeepAlive { get { return (DateTime.Now - _LastAlive).TotalMilliseconds >= TIMEOUT; } }
 
 		public ClientConnectionBase(TcpClient socket, int bufferSize)
 		{
@@ -24,8 +24,6 @@ namespace DynServer
 			BufferSize = bufferSize;
 			_ThreadReceive = new Thread(Receiving);
 			_ThreadReceive.Start();
-			_ThreadKeepAlive = new Thread(KeepAlive);
-			_ThreadKeepAlive.Start();
 		}
 
 		private void Receiving()
@@ -64,17 +62,6 @@ namespace DynServer
 			ReceivingMessage?.Invoke(this, message);
 		}
 
-		private void KeepAlive()
-		{
-			while (_ThreadReceive.IsAlive)
-			{
-				if ((DateTime.Now - _LastAlive).TotalMilliseconds >= TIMEOUT)
-					Send(PacketProtocol.WrapKeepaliveMessage());
-
-				Thread.Sleep(TIMEOUT);
-			}
-		}
-
 		public void Send(string message)
 		{
 			if (!Socket.Connected) return;
@@ -87,9 +74,14 @@ namespace DynServer
 			if (!Socket.Connected) return;
 
 			NetworkStream stream = Socket.GetStream();
-			stream.Write(data, 0, data.Length);
-			stream.Flush();
+			stream.WriteAsync(data, 0, data.Length);
 			_LastAlive = DateTime.Now;
+		}
+
+		public void SendKeepAlive()
+		{
+			if(NeedKeepAlive)
+				Send(PacketProtocol.WrapKeepaliveMessage());
 		}
 
 		#region IDisposable Support
@@ -104,6 +96,7 @@ namespace DynServer
 					// Supprimer l'état managé (objets managés).
 					if (Socket.Connected) Socket.GetStream().Close();
 					Socket.Close();
+					_ThreadReceive.Abort();
 				}
 
 				// Libérer les ressources non managées (objets non managés) et remplacer un finaliseur ci-dessous.

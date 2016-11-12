@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Configuration;
 using System.Net.Sockets;
+using System.Threading;
 using System.Windows.Forms;
 using DynServer;
 
@@ -14,6 +15,7 @@ namespace DynNet
 
 		public ClientConnectionBase ClientConnection { get; private set; }
 		public DynNetProtocol Protocol { get; private set; }
+		private Thread _ThreadKeepAlive;
 
 		#region MessageToConsole
 		private string _MessageToConsole = null;
@@ -60,11 +62,14 @@ namespace DynNet
 		private void frmMain_Load(object sender, EventArgs e)
 		{
 			SwitchView(false);
+			_ThreadKeepAlive = new Thread(KeepAlive);
+			_ThreadKeepAlive.Start();
 		}
 
 		private void frmMain_FormClosed(object sender, FormClosedEventArgs e)
 		{
 			if (ClientConnection != null) ClientConnection.Dispose();
+			_ThreadKeepAlive.Abort();
 		}
 
 		private void SwitchView(bool connected)
@@ -86,6 +91,8 @@ namespace DynNet
 					ActiveControl = txtUsername;
 
 				lstConnected.Items.Clear();
+				if (ClientConnection != null) ClientConnection.Dispose();
+				ClientConnection = null;
 			}
 		}
 
@@ -140,6 +147,15 @@ namespace DynNet
 
 			SwitchView(true);
 			Cursor = Cursors.Default;
+		}
+
+		private void KeepAlive()
+		{
+			while (_ThreadKeepAlive.IsAlive)
+			{
+				if (ClientConnection != null) ClientConnection.SendKeepAlive();
+				Thread.Sleep(ClientConnectionBase.TIMEOUT);
+			}
 		}
 
 		private void ClientConnection_ReceivingMessage(object sender, string message)
